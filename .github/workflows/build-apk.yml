@@ -1,4 +1,4 @@
-name: Build Dio APK
+name: Build Flutter APK
 
 on:
   push:
@@ -24,24 +24,46 @@ jobs:
         with:
           channel: stable
 
-      - name: Extract project ZIP files
+      - name: Check files
+        run: |
+          echo "Files in repository:"
+          ls -la
+          echo "Checking ZIP files..."
+          find . -maxdepth 3 -type f -name "*.zip"
+
+      - name: Extract ZIP files
         run: |
           mkdir -p extracted
-          for archive in *.zip; do
-            if [ -f "$archive" ]; then
-              unzip -oq "$archive" -d extracted
-            fi
-          done
 
-          PROJECT_DIR="$(find "$GITHUB_WORKSPACE/extracted" -type f -name pubspec.yaml -print -quit | xargs -r dirname)"
+          ZIP_COUNT=$(find . -maxdepth 3 -type f -name "*.zip" | wc -l)
 
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: pubspec.yaml not found"
+          if [ "$ZIP_COUNT" -eq 0 ]; then
+            echo "ERROR: No ZIP files found"
             exit 1
           fi
 
+          find . -maxdepth 3 -type f -name "*.zip" -print0 | while IFS= read -r -d '' archive; do
+            echo "Extracting: $archive"
+            unzip -oq "$archive" -d extracted
+          done
+
+      - name: Find Flutter project
+        run: |
+          PROJECT_DIR=$(find "$GITHUB_WORKSPACE/extracted" -type f -name "pubspec.yaml" -print -quit | xargs -r dirname)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: Flutter pubspec.yaml not found"
+            find extracted -maxdepth 5 -type f
+            exit 1
+          fi
+
+          echo "Flutter project found:"
+          echo "$PROJECT_DIR"
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Flutter project found: $PROJECT_DIR"
+
+      - name: Flutter Doctor
+        run: flutter doctor -v
 
       - name: Install dependencies
         run: flutter pub get
@@ -56,3 +78,4 @@ jobs:
         with:
           name: Dio-APK
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
