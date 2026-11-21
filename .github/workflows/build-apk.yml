@@ -24,14 +24,35 @@ jobs:
         with:
           channel: stable
 
+      - name: Extract project ZIP files
+        run: |
+          mkdir -p extracted
+          for archive in *.zip; do
+            if [ -f "$archive" ]; then
+              unzip -oq "$archive" -d extracted
+            fi
+          done
+
+          PROJECT_DIR="$(find "$GITHUB_WORKSPACE/extracted" -type f -name pubspec.yaml -print -quit | xargs -r dirname)"
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: pubspec.yaml not found"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Flutter project found: $PROJECT_DIR"
+
       - name: Install dependencies
         run: flutter pub get
+        working-directory: ${{ env.PROJECT_DIR }}
 
       - name: Build APK
         run: flutter build apk --release
+        working-directory: ${{ env.PROJECT_DIR }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Dio-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
